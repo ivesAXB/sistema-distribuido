@@ -1,0 +1,59 @@
+# Implantação opcional em Docker Swarm (cluster real com vários hosts).
+#
+#   docker swarm init
+#   docker compose build            # gera as imagens safra-distribuida/*:1.0
+#   docker stack deploy -c docker-stack.yml safra
+#   docker service ls
+#   docker service scale safra_worker=6
+#
+# Em um cluster com vários hosts, as imagens precisam estar em um registry acessível
+# a todos os nós. O MANAGER fica preso a nós Swarm "manager"; os WORKERS se espalham
+# entre os nós do cluster (num cluster de 1 host, rodam no próprio manager).
+
+version: "3.8"
+
+services:
+  redis:
+    image: redis:7.2-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    networks: [cluster]
+    deploy:
+      placement:
+        constraints: [node.role == manager]
+
+  manager:
+    image: safra-distribuida/manager:1.0
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      NODE_ID: manager
+    ports:
+      - "8000:8000"
+    networks: [cluster]
+    deploy:
+      replicas: 1
+      labels:
+        org.safra.papel: "manager"
+      placement:
+        constraints: [node.role == manager]
+
+  worker:
+    image: safra-distribuida/worker:1.0
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      CONCORRENCIA: "4"
+      THREADS: "4"
+      MAX_HTTP: "3"
+    networks: [cluster]
+    deploy:
+      replicas: 3
+      labels:
+        org.safra.papel: "worker"
+      placement:
+        preferences:
+          - spread: node.id
+      restart_policy:
+        condition: on-failure
+
+networks:
+  cluster:
+    driver: overlay

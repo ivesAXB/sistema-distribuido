@@ -1,0 +1,100 @@
+# Ecossistema Safra Distribuída
+# Topologia: 1 nó MANAGER (coordenador) + 3 nós WORKER (processamento) + Redis (broker/estado)
+#
+#   docker compose up --build
+#   Painel: http://localhost:8000
+
+name: safra-distribuida
+
+x-worker: &worker
+  build:
+    context: .
+    dockerfile: worker/Dockerfile
+  image: safra-distribuida/worker:1.0
+  restart: unless-stopped
+  depends_on:
+    redis:
+      condition: service_healthy
+  networks: [cluster]
+  environment: &worker-env
+    REDIS_URL: redis://redis:6379/0
+    CONCORRENCIA: "4"   # corrotinas asyncio consumindo a fila
+    THREADS: "4"        # threads do pool de processamento
+    MAX_HTTP: "3"       # requisições simultâneas ao SIDRA por worker
+    HEARTBEAT_TTL: "10"
+
+services:
+  redis:
+    image: redis:7.2-alpine
+    container_name: safra-redis
+    command: ["redis-server", "--appendonly", "yes"]
+    labels:
+      org.safra.papel: "broker"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    volumes:
+      - redis-dados:/data
+    networks: [cluster]
+
+  manager:
+    build:
+      context: .
+      dockerfile: manager/Dockerfile
+    image: safra-distribuida/manager:1.0
+    container_name: safra-manager
+    hostname: manager
+    labels:
+      org.safra.papel: "manager"
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      NODE_ID: manager
+      INTERVALO_VIGIA: "3"
+      MAX_TENTATIVAS: "3"
+    ports:
+      - "8000:8000"
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks: [cluster]
+    restart: unless-stopped
+
+  worker-1:
+    <<: *worker
+    container_name: safra-worker-1
+    hostname: worker-1
+    labels:
+      org.safra.papel: "worker"
+    environment:
+      <<: *worker-env
+      NODE_ID: worker-1
+
+  worker-2:
+    <<: *worker
+    container_name: safra-worker-2
+    hostname: worker-2
+    labels:
+      org.safra.papel: "worker"
+    environment:
+      <<: *worker-env
+      NODE_ID: worker-2
+
+  worker-3:
+    <<: *worker
+    container_name: safra-worker-3
+    hostname: worker-3
+    labels:
+      org.safra.papel: "worker"
+    environment:
+      <<: *worker-env
+      NODE_ID: worker-3
+
+networks:
+  cluster:
+    name: safra-cluster
+    driver: bridge
+
+volumes:
+  redis-dados:

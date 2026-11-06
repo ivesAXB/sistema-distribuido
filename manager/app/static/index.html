@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Safra Distribuída</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #f5f3ee; --card: #ffffff; --ink: #1f2a1f; --muted: #66705f; --line: #e2ded3;
+    --accent: #2f6b3a; --accent-soft: #e3efe2; --warn: #b5651d; --bad: #b3261e; --ok: #2f8a3e;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { padding: 20px 24px; border-bottom: 1px solid var(--line); background: var(--card); display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; }
+  header h1 { margin: 0; font-size: 20px; }
+  header span { color: var(--muted); }
+  main { max-width: 1200px; margin: 0 auto; padding: 20px 16px 48px; display: grid; gap: 16px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
+  .card h2 { margin: 0 0 12px; font-size: 15px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 860px) { .grid2 { grid-template-columns: 1fr; } }
+  .nodes { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
+  .node { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+  .node.manager { background: var(--accent-soft); border-color: var(--accent); }
+  .node.offline { opacity: .55; border-style: dashed; }
+  .node b { display: block; font-size: 13px; word-break: break-all; }
+  .node small { color: var(--muted); display: block; }
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; background: var(--ok); }
+  .offline .dot { background: var(--bad); }
+  .busy { color: var(--warn); font-weight: 600; }
+  .produtos { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-bottom: 12px; }
+  .produtos label { white-space: nowrap; }
+  button { background: var(--accent); color: #fff; border: 0; border-radius: 6px; padding: 8px 14px; font-weight: 600; cursor: pointer; }
+  button:disabled { opacity: .5; cursor: default; }
+  input[type=number] { width: 64px; padding: 4px; }
+  .bar { height: 10px; background: var(--line); border-radius: 5px; overflow: hidden; margin: 8px 0; }
+  .bar > div { height: 100%; background: var(--accent); width: 0; transition: width .3s; }
+  .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+  .tabs button { background: transparent; color: var(--ink); border: 1px solid var(--line); font-weight: 500; }
+  .tabs button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 14px; }
+  .kpi { border: 1px solid var(--line); border-radius: 8px; padding: 10px; }
+  .kpi small { color: var(--muted); display: block; }
+  .kpi strong { font-size: 18px; font-variant-numeric: tabular-nums; }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  th, td { text-align: right; padding: 5px 8px; border-bottom: 1px solid var(--line); }
+  th:first-child, td:first-child { text-align: left; }
+  th { color: var(--muted); font-weight: 600; font-size: 12px; }
+  .scroll { overflow-x: auto; }
+  .muted { color: var(--muted); }
+  canvas { max-height: 300px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🌾 Safra Distribuída</h1>
+  <span>LSPA / SIDRA-IBGE · tabela 6588 · Manager + Workers</span>
+</header>
+<main>
+  <section class="card">
+    <h2>Cluster</h2>
+    <div class="muted" id="fila">Fila pendente: –</div>
+    <div class="nodes" id="nodes" style="margin-top:10px"></div>
+  </section>
+
+  <section class="card">
+    <h2>Nova análise</h2>
+    <div class="produtos" id="produtos"></div>
+    <label>Meses de estimativa: <input type="number" id="periodos" value="13" min="2" max="60"></label>
+    &nbsp;<button id="disparar">Disparar job distribuído</button>
+    <div id="progresso" style="margin-top:12px; display:none">
+      <div class="bar"><div id="barra"></div></div>
+      <div id="statusJob" class="muted"></div>
+    </div>
+  </section>
+
+  <section class="card" id="resultado" style="display:none">
+    <h2>Resultado consolidado</h2>
+    <div class="tabs" id="tabs"></div>
+    <div class="kpis" id="kpis"></div>
+    <div class="grid2">
+      <div><canvas id="gUf"></canvas></div>
+      <div><canvas id="gSerie"></canvas></div>
+    </div>
+    <div class="scroll" style="margin-top:14px"><table id="tabela"></table></div>
+  </section>
+
+  <section class="grid2">
+    <div class="card"><h2>Distribuição de tarefas por Worker</h2><canvas id="gDist"></canvas><div id="erros" class="muted"></div></div>
+    <div class="card"><h2>Histórico de jobs</h2><div class="scroll"><table id="historico"></table></div></div>
+  </section>
+</main>
+
+<script>
+const fmt = (n, d = 0) => n == null ? '–' : Number(n).toLocaleString('pt-BR', { maximumFractionDigits: d });
+const periodo = p => p ? `${p.slice(4)}/${p.slice(0, 4)}` : '–';
+const charts = {};
+let jobAtual = null, resultado = null, produtoSel = null;
+
+function grafico(id, cfg) {
+  if (charts[id]) charts[id].destroy();
+  charts[id] = new Chart(document.getElementById(id), cfg);
+}
+
+async function api(url, opts) {
+  const r = await fetch(url, opts);
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+
+async function carregarCatalogo() {
+  const c = await api('/api/catalogo');
+  document.getElementById('produtos').innerHTML = c.produtos.map(p =>
+    `<label><input type="checkbox" value="${p.id}" ${p.padrao ? 'checked' : ''}> ${p.nome}</label>`).join('');
+}
+
+async function atualizarCluster() {
+  try {
+    const c = await api('/api/cluster');
+    document.getElementById('fila').textContent = `Fila pendente: ${c.fila_pendente} tarefa(s)`;
+    const m = `<div class="node manager"><b><span class="dot"></span>MANAGER</b><small>${c.manager.id || '-'}</small><small>coordenador · fila Redis</small></div>`;
+    const ws = c.workers.map(w => `
+      <div class="node ${w.status}">
+        <b><span class="dot"></span>${w.id}</b>
+        <small>${w.status} · ${w.concorrencia} corrotinas · ${w.threads} threads</small>
+        <small class="${w.em_execucao ? 'busy' : ''}">em execução: ${w.em_execucao}</small>
+        <small>ok: ${w.tarefas_ok} · erro: ${w.tarefas_erro}</small>
+      </div>`).join('');
+    document.getElementById('nodes').innerHTML = m + (ws || '<span class="muted">Nenhum worker registrado</span>');
+  } catch (e) { console.error(e); }
+}
+
+async function disparar() {
+  const produtos = [...document.querySelectorAll('#produtos input:checked')].map(i => +i.value);
+  const periodos = +document.getElementById('periodos').value;
+  const r = await api('/api/jobs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ produtos, periodos }) });
+  jobAtual = r.job_id;
+  document.getElementById('progresso').style.display = '';
+  acompanhar();
+}
+
+async function acompanhar() {
+  if (!jobAtual) return;
+  const j = await api(`/api/jobs/${jobAtual}`);
+  const feitas = j.concluidas + j.falhas;
+  document.getElementById('barra').style.width = `${feitas / j.total * 100}%`;
+  document.getElementById('statusJob').textContent =
+    `Job ${j.id} · ${j.status} · ${feitas}/${j.total} tarefas (${j.falhas} falhas) · ${j.duracao_s}s`;
+  if (j.status === 'concluido') { await mostrarResultado(jobAtual); carregarHistorico(); }
+  else setTimeout(acompanhar, 800);
+}
+
+async function mostrarResultado(id) {
+  jobAtual = id;
+  resultado = await api(`/api/jobs/${id}/resultado`);
+  document.getElementById('resultado').style.display = '';
+  produtoSel = resultado.produtos[0]?.produto.id;
+  document.getElementById('tabs').innerHTML = resultado.produtos.map(p =>
+    `<button data-id="${p.produto.id}">${p.produto.nome}</button>`).join('');
+  document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => { produtoSel = +b.dataset.id; desenharProduto(); });
+  desenharProduto();
+  grafico('gDist', {
+    type: 'bar',
+    data: { labels: resultado.distribuicao.map(d => d.worker),
+      datasets: [{ label: 'tarefas processadas', data: resultado.distribuicao.map(d => d.tarefas), backgroundColor: '#2f6b3a' }] },
+    options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } }
+  });
+  document.getElementById('erros').textContent = resultado.erros.length
+    ? `Falhas: ${resultado.erros.map(e => `${e.tarefa} (${e.erro})`).join('; ')}` : '';
+}
+
+function desenharProduto() {
+  document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', +b.dataset.id === produtoSel));
+  const p = resultado.produtos.find(x => x.produto.id === produtoSel);
+  if (!p) return;
+  const k = [
+    ['Produção estimada', `${fmt(p.producao_t)} t`],
+    ['Rendimento médio', `${fmt(p.rendimento_kg_ha)} kg/ha`],
+    ['Variação da estimativa', p.variacao_producao_pct == null ? '–' : `${fmt(p.variacao_producao_pct, 2)}%`],
+    ['Área plantada não colhida', p.perda_area_pct == null ? '–' : `${fmt(p.perda_area_pct, 2)}%`],
+    ['Concentração (top 3 UFs)', `${fmt(p.concentracao_top3_pct, 1)}%`],
+    ['Referência', `${periodo(p.periodo_atual)} vs ${periodo(p.periodo_base)}`],
+  ];
+  document.getElementById('kpis').innerHTML = k.map(([a, b]) => `<div class="kpi"><small>${a}</small><strong>${b}</strong></div>`).join('');
+  const ufs = p.ufs.filter(u => u.producao_t > 0);
+  grafico('gUf', {
+    type: 'bar',
+    data: { labels: ufs.map(u => u.uf), datasets: [{ label: 'Produção (t)', data: ufs.map(u => u.producao_t), backgroundColor: '#2f6b3a' }] },
+    options: { plugins: { title: { display: true, text: 'Produção por UF (t)' }, legend: { display: false } } }
+  });
+  grafico('gSerie', {
+    type: 'line',
+    data: { labels: p.serie.map(s => periodo(s.periodo)), datasets: [{ label: 'Produção estimada (t)', data: p.serie.map(s => s.producao_t), borderColor: '#b5651d', tension: .25 }] },
+    options: { plugins: { title: { display: true, text: 'Evolução da estimativa da safra (Brasil, t)' }, legend: { display: false } } }
+  });
+  document.getElementById('tabela').innerHTML =
+    `<tr><th>UF</th><th>Região</th><th>Produção (t)</th><th>Área plantada (ha)</th><th>Área colhida (ha)</th><th>Rendimento (kg/ha)</th><th>Não colhida %</th><th>Var. %</th></tr>` +
+    ufs.map(u => `<tr><td>${u.uf}</td><td>${u.regiao}</td><td>${fmt(u.producao_t)}</td><td>${fmt(u.area_plantada_ha)}</td><td>${fmt(u.area_colhida_ha)}</td>
+      <td>${fmt(u.rendimento_kg_ha)}</td><td>${fmt(u.perda_area_pct, 2)}</td><td>${fmt(u.variacao_producao_pct, 2)}</td></tr>`).join('');
+}
+
+async function carregarHistorico() {
+  const js = await api('/api/jobs');
+  document.getElementById('historico').innerHTML = '<tr><th>Job</th><th>Status</th><th>Tarefas</th><th>Falhas</th><th>Tempo (s)</th></tr>' +
+    js.map(j => `<tr><td><a href="#" data-job="${j.id}">${j.id}</a></td><td>${j.status}</td><td>${j.concluidas}/${j.total}</td><td>${j.falhas}</td><td>${j.duracao_s}</td></tr>`).join('');
+  document.querySelectorAll('#historico a').forEach(a => a.onclick = e => { e.preventDefault(); mostrarResultado(a.dataset.job); });
+}
+
+document.getElementById('disparar').onclick = () => disparar().catch(e => alert(e.message));
+carregarCatalogo(); carregarHistorico(); atualizarCluster();
+setInterval(atualizarCluster, 1000);
+</script>
+</body>
+</html>
