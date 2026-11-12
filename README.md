@@ -30,8 +30,8 @@ docker compose version
 ### Passo 1 — Clonar o repositório
 
 ```bash
-git clone <URL-DO-REPOSITORIO>
-cd safra-distribuida
+git clone https://github.com/ivesAXB/sistema-distribuido.git
+cd sistema-distribuido
 ```
 
 ### Passo 2 — Construir as imagens e subir o cluster
@@ -168,7 +168,7 @@ https://apisidra.ibge.gov.br/values/t/6588/n3/{UFs}/v/109,216,35,36/p/last 13/c4
 ## Estrutura do repositório
 
 ```
-safra-distribuida/
+sistema-distribuido/
 ├── docker-compose.yml        # topologia: manager + worker-1..3 + redis
 ├── docker-stack.yml          # alternativa Docker Swarm (manager/worker nodes)
 ├── comum/chaves.py           # contrato de filas/chaves do Redis (compartilhado)
