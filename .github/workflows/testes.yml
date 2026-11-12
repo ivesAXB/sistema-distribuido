@@ -1,0 +1,33 @@
+name: Testes
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  testes:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        servico: [manager, worker]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Instalar dependências (${{ matrix.servico }})
+        run: pip install -r ${{ matrix.servico }}/requirements.txt -r requirements-dev.txt
+      - name: Rodar testes (${{ matrix.servico }})
+        working-directory: ${{ matrix.servico }}
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: python -m pytest -q tests
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validar docker-compose.yml
+        run: docker compose config -q
+      - name: Construir imagens do Manager e dos Workers
+        run: docker compose build

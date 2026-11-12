@@ -1,5 +1,7 @@
 # 🌾 Safra Distribuída
 
+[![Testes](https://github.com/ivesAXB/sistema-distribuido/actions/workflows/testes.yml/badge.svg)](https://github.com/ivesAXB/sistema-distribuido/actions/workflows/testes.yml)
+
 Ecossistema distribuído que consome a **API SIDRA do IBGE** (pesquisa **LSPA**, Levantamento Sistemático da Produção Agrícola, tabela **6588**) e calcula, em paralelo, indicadores de safra por UF para o tema **Agronegócio / ESG**.
 
 > Projeto Final — Desenvolvimento de Sistemas Distribuídos — Prof. Vitório Neto
@@ -186,6 +188,7 @@ sistema-distribuido/
 │   │   ├── sidra.py          # cliente HTTP assíncrono do SIDRA (retry + semáforo)
 │   │   └── processamento.py  # cálculo dos indicadores
 │   └── tests/
+├── .github/workflows/      # CI: testes + build das imagens
 └── docs/
     ├── arquitetura.md        # diagramas UML (Mermaid)
     └── pitch.md              # roteiro de 10 min
@@ -207,12 +210,21 @@ sistema-distribuido/
 
 ## Testes
 
-Testes unitários do processamento (rodam sem Docker):
+São 13 testes automatizados, que o GitHub Actions roda a cada push (`.github/workflows/testes.yml`). O CI também valida o `docker-compose.yml` e constrói as imagens.
+
+| Suíte | O que cobre |
+|---|---|
+| `manager/tests/test_api.py` | Particionamento produto × região, validação do pedido e idempotência (resultado duplicado conta 1x), usando Redis em memória |
+| `manager/tests/test_agregador.py` | Consolidação nacional, rendimento, perdas, concentração e distribuição por Worker |
+| `worker/tests/test_sidra.py` | Montagem do endpoint SIDRA e retentativas (503/429 repetem, 400 não repete) |
+| `worker/tests/test_processamento.py` | Símbolos especiais do SIDRA (`-`, `...`, `X`) e indicadores por UF |
+
+Para rodar localmente (sem Docker), a partir da raiz do repositório:
 
 ```bash
-cd worker
-pip install -r requirements.txt pytest
-python -m pytest -q tests
+pip install -r manager/requirements.txt -r worker/requirements.txt -r requirements-dev.txt
+cd manager && PYTHONPATH=.. python -m pytest -q tests && cd ..
+cd worker && PYTHONPATH=.. python -m pytest -q tests && cd ..
 ```
 
 ## Equipe
