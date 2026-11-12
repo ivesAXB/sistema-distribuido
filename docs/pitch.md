@@ -5,7 +5,7 @@
 | 0:00–1:00 | **Problema e tema** | O agro responde por cerca de ¼ do PIB brasileiro. A LSPA/IBGE publica todo mês a estimativa da safra por UF e por cultura. Pergunta: *onde estamos produzindo mais por hectare, onde estamos perdendo área e como a safra evolui?* | |
 | 1:00–2:00 | **Dados (SIDRA)** | Tabela 6588, variáveis 109/216/35/36, classificação c48 (produto), nível n3 (UF). Mostrar a URL real do endpoint. | |
 | 2:00–4:30 | **Arquitetura** | Diagrama de implantação: Manager, Redis, Workers. Scatter-gather: 1 job vira 50 tarefas (produto × região). Fila *pull* com balanceamento natural. Justificar Redis (BLMOVE atômico, *lease*) e FastAPI/asyncio. | |
-| 4:30–5:30 | **Paralelismo interno** | Diagrama 8: corrotinas asyncio para I/O, semáforo limitando o SIDRA, ThreadPoolExecutor para CPU. Mostrar nos logs: `corrotina N, proc_M`. | |
+| 4:30–5:30 | **Paralelismo interno** | Diagrama 8: corrotinas asyncio para I/O, semáforo limitando o SIDRA, ThreadPoolExecutor para CPU. Mostrar nos logs: `corrotina N, proc_M`. Mostrar o gráfico de `docs/benchmark.md`: 12,1 s → 3,7 s (asyncio) → 1,3 s (3 Workers). | |
 | 5:30–8:00 | **Demo ao vivo** | `docker compose ps` (nós explícitos) → painel → disparar job → gráfico de distribuição por Worker → aba Soja (MT/PR/GO) → **`docker kill safra-worker-2`** durante um job → painel mostra offline e o job termina mesmo assim. | |
 | 8:00–9:15 | **Leitura ESG/Agro** | Rendimento (kg/ha) = eficiência no uso da terra, menos pressão por desmatamento. Área não colhida = risco climático. Concentração top-3 = dependência regional. | |
 | 9:15–10:00 | **Fechamento** | Escalabilidade (`docker service scale` no Swarm), limitações e próximos passos (PIM-PF para cruzar com a agroindústria, persistência histórica). | |

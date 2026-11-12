@@ -10,6 +10,7 @@ Ecossistema distribuído que consome a **API SIDRA do IBGE** (pesquisa **LSPA**,
 - **Paralelismo:** entre nós (vários Workers) e dentro de cada nó (corrotinas `asyncio` + `ThreadPoolExecutor`)
 - **Tolerância a falhas:** heartbeat, *lease* de tarefas e reenfileiramento automático
 - **Arquitetura e diagramas UML:** [`docs/arquitetura.md`](docs/arquitetura.md)
+- **Benchmark (ganho do paralelismo):** [`docs/benchmark.md`](docs/benchmark.md): 3 Workers foram 9,3x mais rápidos que a execução sequencial
 - **Roteiro do pitch:** [`docs/pitch.md`](docs/pitch.md)
 
 ---
@@ -188,6 +189,7 @@ sistema-distribuido/
 │   │   ├── sidra.py          # cliente HTTP assíncrono do SIDRA (retry + semáforo)
 │   │   └── processamento.py  # cálculo dos indicadores
 │   └── tests/
+├── scripts/benchmark.py    # mede o ganho com 1..3 workers
 ├── .github/workflows/      # CI: testes + build das imagens
 └── docs/
     ├── arquitetura.md        # diagramas UML (Mermaid)
